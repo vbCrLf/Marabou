@@ -106,7 +106,12 @@ public:
 
     virtual bool isActive() const
     {
-        return _constraintActive;
+        return _constraintActive && !_constraintRelaxed;
+    }
+
+    virtual void setRelaxed( bool relaxed )
+    {
+        _constraintRelaxed = relaxed;
     }
 
     /*
@@ -254,6 +259,7 @@ public:
 
 protected:
     bool _constraintActive;
+    bool _constraintRelaxed;
 	Map<unsigned, double> _assignment;
     Map<unsigned, double> _lowerBounds;
     Map<unsigned, double> _upperBounds;
