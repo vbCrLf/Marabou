@@ -85,6 +85,7 @@ PiecewiseLinearConstraint *ReluConstraint::duplicateConstraint() const
 {
     ReluConstraint *clone = new ReluConstraint( _b, _f );
     *clone = *this;
+    if (this->isRelaxed()) clone->setRelaxed(true);
     return clone;
 }
 

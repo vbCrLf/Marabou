@@ -203,8 +203,17 @@ bool Engine::solve( unsigned timeoutInSeconds )
             // Perform any SmtCore-initiated case splits
             if ( _smtCore.needToSplit() )
             {
+                // Restore tableau before splitting, then re-add eqs
+                performPrecisionRestoration( PrecisionRestorer::RESTORE_BASICS );
+                //
+
                 _smtCore.performSplit();
                 splitJustPerformed = true;
+
+                // Re-add eqs
+                addRelaxedEquations();
+                //
+
                 continue;
             }
 
@@ -1041,6 +1050,22 @@ void Engine::initializeTableau( const double *constraintMatrix, const List<unsig
         constraint->setStatistics( &_statistics );
     }
 
+    int count = 0;
+    for (const auto &plc : _plConstraints )
+    {
+        count++;
+        if (plc->isRelaxed()) {
+            if ( plc->getType() != RELU ) {
+                printf(" ******* Relaxed is not ReLU?! **********\n");
+                continue;
+            }
+            ReluConstraint *relu = dynamic_cast<ReluConstraint*>(plc);
+            _relaxedVars[relu->getB()] = relu->getF();
+        }
+    }
+    
+    printf("PL COUNT %d, RELAX COUNT %zu\n\n", count, _relaxedVars.size());
+
     _tableau->initializeTableau( initialBasis );
 
     _costFunctionManager->initialize();
@@ -1129,7 +1154,7 @@ bool Engine::processInputQuery( InputQuery &inputQuery, bool preprocess )
             // Initially, all constraints should be active
             for ( const auto &plc : _plConstraints )
                 {
-                    ASSERT( plc->isActive() );
+                    ASSERT( plc->isActive() || plc->isRelaxed() );
                 }
         });
 
@@ -1803,6 +1828,30 @@ List<unsigned> Engine::getInputVariables() const
     return _preprocessedQuery.getInputVariables();
 }
 
+bool getEquation(Equation &eq, AutoTableau &_tableau, unsigned int vb, unsigned int vf) {
+    double lb = _tableau->getLowerBound(vb);
+    double ub = _tableau->getUpperBound(vb);
+
+    if ((lb <= 0) && (ub <= 0)) {
+        _tableau->tightenLowerBound(vf, 0);
+        _tableau->tightenUpperBound(vf, 0);
+        return false;
+    } else if ((lb >= 0) && (ub >= 0)) {
+        eq.setType(Equation::EQ);
+        eq.addAddend( 1, vb );
+        eq.addAddend( -1, vf );
+        eq.setScalar( 0 );
+        return true;
+    } else {
+        double m = ub / (ub-lb);
+        eq.setType(Equation::LE);
+        eq.addAddend( 1, vf );
+        eq.addAddend( -m, vb );
+        eq.setScalar( -m*lb );
+        return true;
+    }
+}
+
 void Engine::performSymbolicBoundTightening()
 {
     if ( ( !GlobalConfiguration::USE_SYMBOLIC_BOUND_TIGHTENING ) ||
@@ -1823,12 +1872,14 @@ void Engine::performSymbolicBoundTightening()
     List<Tightening> tightenings;
     _networkLevelReasoner->getConstraintTightenings( tightenings );
 
+    List<Equation> eqsToAdd;
     for ( const auto &tightening : tightenings )
     {
-
+        bool done = false;
         if ( tightening._type == Tightening::LB &&
              FloatUtils::gt( tightening._value, _tableau->getLowerBound( tightening._variable ) ) )
         {
+            done = true;
             _tableau->tightenLowerBound( tightening._variable, tightening._value );
             ++numTightenedBounds;
         }
@@ -1836,14 +1887,34 @@ void Engine::performSymbolicBoundTightening()
         if ( tightening._type == Tightening::UB &&
              FloatUtils::lt( tightening._value, _tableau->getUpperBound( tightening._variable ) ) )
         {
+            done = true;
             _tableau->tightenUpperBound( tightening._variable, tightening._value );
             ++numTightenedBounds;
+        }
+
+        if (done) {
+            auto it = _relaxedVars.find(tightening._variable);
+            if (it == _relaxedVars.end()) continue;
+            unsigned int vb = tightening._variable;
+            unsigned int vf = it->second;
+
+            Equation eq;
+            if (getEquation(eq, _tableau, vb, vf))
+                eqsToAdd.append(eq);
         }
     }
 
     struct timespec end = TimeUtils::sampleMicro();
     _statistics.addTimeForSymbolicBoundTightening( TimeUtils::timePassed( start, end ) );
     _statistics.incNumTighteningsFromSymbolicBoundTightening( numTightenedBounds );
+
+    for ( auto &eq : eqsToAdd ) {
+        _tableau->addEquation(eq);
+    }
+    _activeEntryStrategy->resizeHook( _tableau );
+    adjustWorkMemorySize();
+    _rowBoundTightener->resetBounds();
+    _constraintBoundTightener->resetBounds();
 }
 
 bool Engine::shouldExitDueToTimeout( unsigned timeout ) const

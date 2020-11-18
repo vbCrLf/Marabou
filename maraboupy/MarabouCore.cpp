@@ -92,6 +92,12 @@ void addReluConstraint(InputQuery& ipq, unsigned var1, unsigned var2){
     ipq.addPiecewiseLinearConstraint(r);
 }
 
+void addRelaxedReluConstraint(InputQuery& ipq, unsigned var1, unsigned var2){
+    PiecewiseLinearConstraint* r = new ReluConstraint(var1, var2);
+    r->setRelaxed(true);
+    ipq.addPiecewiseLinearConstraint(r);
+}
+
 void addSignConstraint(InputQuery& ipq, unsigned var1, unsigned var2){
     PiecewiseLinearConstraint* r = new SignConstraint(var1, var2);
     ipq.addPiecewiseLinearConstraint(r);
@@ -296,6 +302,15 @@ PYBIND11_MODULE(MarabouCore, m) {
         py::arg("filename"));
     m.def("addReluConstraint", &addReluConstraint, R"pbdoc(
         Add a Relu constraint to the InputQuery
+
+        Args:
+            inputQuery (:class:`~maraboupy.MarabouCore.InputQuery`): Marabou input query to be solved
+            var1 (int): Input variable to Relu constraint
+            var2 (int): Output variable to Relu constraint
+        )pbdoc",
+        py::arg("inputQuery"), py::arg("var1"), py::arg("var2"));
+    m.def("addRelaxedReluConstraint", &addRelaxedReluConstraint, R"pbdoc(
+        Add a relaxed Relu constraint to the InputQuery
 
         Args:
             inputQuery (:class:`~maraboupy.MarabouCore.InputQuery`): Marabou input query to be solved
