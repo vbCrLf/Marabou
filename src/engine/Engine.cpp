@@ -1041,7 +1041,6 @@ void Engine::initializeTableau( const double *constraintMatrix, const List<unsig
         constraint->setStatistics( &_statistics );
     }
 
-    _relaxedVarB = 0xffffffff;
     int count = 0;
     for (const auto &plc : _plConstraints )
     {
@@ -1051,16 +1050,12 @@ void Engine::initializeTableau( const double *constraintMatrix, const List<unsig
                 printf(" ******* Relaxed is not ReLU?! **********\n");
                 continue;
             }
-            if (_relaxedVarB != 0xffffffff) printf(" ******* More than one relaxed var! Not implemented yet **********\n");
             ReluConstraint *relu = dynamic_cast<ReluConstraint*>(plc);
-            _relaxedVarB = relu->getB();
-            _relaxedVarF = relu->getF();
+            _relaxedVars[relu->getB()] = relu->getF();
         }
     }
     
-    printf("PL COUNT %d\n\n", count);
-    if (_relaxedVarB == 0xffffffff) printf(" ******* No relaxed vars **********\n");
-    printf("Relu - %d,%d\n", _relaxedVarB, _relaxedVarF);
+    printf("PL COUNT %d, RELAX COUNT %zu\n\n", count, _relaxedVars.size());
 
     _tableau->initializeTableau( initialBasis );
 
@@ -1864,25 +1859,30 @@ void Engine::performSymbolicBoundTightening()
             ++numTightenedBounds;
         }
 
-        if (done && (tightening._variable == _relaxedVarB)) {
-            double lb = _tableau->getLowerBound(_relaxedVarB);
-            double ub = _tableau->getUpperBound(_relaxedVarB);
+        if (done) {
+            auto it = _relaxedVars.find(tightening._variable);
+            if (it == _relaxedVars.end()) continue;
+            unsigned int vb = tightening._variable;
+            unsigned int vf = it->second;
+
+            double lb = _tableau->getLowerBound(vb);
+            double ub = _tableau->getUpperBound(vb);
             // printf("[%f, %f]\n", lb, ub);
 
             if ((lb <= 0) && (ub <= 0)) {
-                _tableau->tightenLowerBound(_relaxedVarF, 0);
-                _tableau->tightenUpperBound(_relaxedVarF, 0);
+                _tableau->tightenLowerBound(vf, 0);
+                _tableau->tightenUpperBound(vf, 0);
             } else if ((lb >= 0) && (ub >= 0)) {
                 Equation eq;
-                eq.addAddend( 1, _relaxedVarB );
-                eq.addAddend( -1, _relaxedVarF );
+                eq.addAddend( 1, vb );
+                eq.addAddend( -1, vf );
                 eq.setScalar( 0 );
                 eqsToAdd.append(eq);
             } else {
                 double m = ub / (ub-lb);
                 Equation eq(Equation::LE);
-                eq.addAddend( 1, _relaxedVarF );
-                eq.addAddend( -m, _relaxedVarB );
+                eq.addAddend( 1, vf );
+                eq.addAddend( -m, vb );
                 eq.setScalar( -m*lb );
                 eqsToAdd.append(eq);
             }
@@ -1893,6 +1893,10 @@ void Engine::performSymbolicBoundTightening()
         }
     }
 
+    struct timespec end = TimeUtils::sampleMicro();
+    _statistics.addTimeForSymbolicBoundTightening( TimeUtils::timePassed( start, end ) );
+    _statistics.incNumTighteningsFromSymbolicBoundTightening( numTightenedBounds );
+
     for ( auto &eq : eqsToAdd ) {
         _tableau->addEquation(eq);
     }
@@ -1900,10 +1904,6 @@ void Engine::performSymbolicBoundTightening()
     adjustWorkMemorySize();
     _rowBoundTightener->resetBounds();
     _constraintBoundTightener->resetBounds();
-
-    struct timespec end = TimeUtils::sampleMicro();
-    _statistics.addTimeForSymbolicBoundTightening( TimeUtils::timePassed( start, end ) );
-    _statistics.incNumTighteningsFromSymbolicBoundTightening( numTightenedBounds );
 }
 
 bool Engine::shouldExitDueToTimeout( unsigned timeout ) const

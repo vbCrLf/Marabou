@@ -178,8 +178,7 @@ private:
     };
 
 
-    unsigned int _relaxedVarB;
-    unsigned int _relaxedVarF;
+    std::map<unsigned int, unsigned int> _relaxedVars;
 
     /*
       Perform bound tightening operations that require
