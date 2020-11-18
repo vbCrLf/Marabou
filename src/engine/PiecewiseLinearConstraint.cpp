@@ -18,7 +18,6 @@
 
 PiecewiseLinearConstraint::PiecewiseLinearConstraint()
     : _constraintActive( true )
-    , _constraintRelaxed( false )
     , _score( FloatUtils::negativeInfinity() )
     , _constraintBoundTightener( NULL )
     , _statistics( NULL )
