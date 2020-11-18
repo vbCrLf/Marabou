@@ -114,6 +114,11 @@ public:
         _constraintRelaxed = relaxed;
     }
 
+    virtual bool isRelaxed() const
+    {
+        return _constraintRelaxed;
+    }
+
     /*
       Returns true iff the variable participates in this piecewise
       linear constraint.

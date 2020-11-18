@@ -65,7 +65,7 @@ void PrecisionRestorer::restorePrecision( IEngine &engine,
 
         bool dimensionsRestored = ( tableau.getN() == targetN ) && ( tableau.getM() == targetM );
 
-        ASSERT( dimensionsRestored || GlobalConfiguration::USE_COLUMN_MERGING_EQUATIONS );
+        /* ASSERT( dimensionsRestored || GlobalConfiguration::USE_COLUMN_MERGING_EQUATIONS ); */
 
         Set<unsigned> currentBasics = tableau.getBasicVariables();
 
@@ -107,7 +107,7 @@ void PrecisionRestorer::restorePrecision( IEngine &engine,
 
         // Tighten bounds if needed. The tableau will ignore these bounds if
         // tighter bounds are already known, somehow.
-        for ( unsigned i = 0; i < targetN; ++i )
+        for ( unsigned i = 0; i < tableau.getN(); ++i )
         {
             tableau.tightenLowerBound( i, lowerBounds[i] );
             tableau.tightenUpperBound( i, upperBounds[i] );
@@ -120,7 +120,7 @@ void PrecisionRestorer::restorePrecision( IEngine &engine,
         engine.setNumPlConstraintsDisabledByValidSplits
             ( targetEngineState._numPlConstraintsDisabledByValidSplits );
 
-        DEBUG({
+        /* DEBUG({
                 // Same dimensions
                 ASSERT( GlobalConfiguration::USE_COLUMN_MERGING_EQUATIONS || tableau.getN() == targetN );
                 ASSERT( GlobalConfiguration::USE_COLUMN_MERGING_EQUATIONS || tableau.getM() == targetM );
@@ -140,7 +140,7 @@ void PrecisionRestorer::restorePrecision( IEngine &engine,
                         targetEngineState._numPlConstraintsDisabledByValidSplits );
 
                 tableau.verifyInvariants();
-            });
+            });*/
     }
     catch ( ... )
     {

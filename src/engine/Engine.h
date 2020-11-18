@@ -178,6 +178,9 @@ private:
     };
 
 
+    unsigned int _relaxedVarB;
+    unsigned int _relaxedVarF;
+
     /*
       Perform bound tightening operations that require
       access to the explicit basis matrix.

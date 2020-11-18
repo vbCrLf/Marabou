@@ -1041,6 +1041,27 @@ void Engine::initializeTableau( const double *constraintMatrix, const List<unsig
         constraint->setStatistics( &_statistics );
     }
 
+    _relaxedVarB = 0xffffffff;
+    int count = 0;
+    for (const auto &plc : _plConstraints )
+    {
+        count++;
+        if (plc->isRelaxed()) {
+            if ( plc->getType() != RELU ) {
+                printf(" ******* Relaxed is not ReLU?! **********\n");
+                continue;
+            }
+            if (_relaxedVarB != 0xffffffff) printf(" ******* More than one relaxed var! Not implemented yet **********\n");
+            ReluConstraint *relu = dynamic_cast<ReluConstraint*>(plc);
+            _relaxedVarB = relu->getB();
+            _relaxedVarF = relu->getF();
+        }
+    }
+    
+    printf("PL COUNT %d\n\n", count);
+    if (_relaxedVarB == 0xffffffff) printf(" ******* No relaxed vars **********\n");
+    printf("Relu - %d,%d\n", _relaxedVarB, _relaxedVarF);
+
     _tableau->initializeTableau( initialBasis );
 
     _costFunctionManager->initialize();
@@ -1129,7 +1150,7 @@ bool Engine::processInputQuery( InputQuery &inputQuery, bool preprocess )
             // Initially, all constraints should be active
             for ( const auto &plc : _plConstraints )
                 {
-                    ASSERT( plc->isActive() );
+                    ASSERT( plc->isActive() || plc->isRelaxed() );
                 }
         });
 
@@ -1823,12 +1844,14 @@ void Engine::performSymbolicBoundTightening()
     List<Tightening> tightenings;
     _networkLevelReasoner->getConstraintTightenings( tightenings );
 
+    List<Equation> eqsToAdd;
     for ( const auto &tightening : tightenings )
     {
-
+        bool done = false;
         if ( tightening._type == Tightening::LB &&
              FloatUtils::gt( tightening._value, _tableau->getLowerBound( tightening._variable ) ) )
         {
+            done = true;
             _tableau->tightenLowerBound( tightening._variable, tightening._value );
             ++numTightenedBounds;
         }
@@ -1836,10 +1859,47 @@ void Engine::performSymbolicBoundTightening()
         if ( tightening._type == Tightening::UB &&
              FloatUtils::lt( tightening._value, _tableau->getUpperBound( tightening._variable ) ) )
         {
+            done = true;
             _tableau->tightenUpperBound( tightening._variable, tightening._value );
             ++numTightenedBounds;
         }
+
+        if (done && (tightening._variable == _relaxedVarB)) {
+            double lb = _tableau->getLowerBound(_relaxedVarB);
+            double ub = _tableau->getUpperBound(_relaxedVarB);
+            // printf("[%f, %f]\n", lb, ub);
+
+            if ((lb <= 0) && (ub <= 0)) {
+                _tableau->tightenLowerBound(_relaxedVarF, 0);
+                _tableau->tightenUpperBound(_relaxedVarF, 0);
+            } else if ((lb >= 0) && (ub >= 0)) {
+                Equation eq;
+                eq.addAddend( 1, _relaxedVarB );
+                eq.addAddend( -1, _relaxedVarF );
+                eq.setScalar( 0 );
+                eqsToAdd.append(eq);
+            } else {
+                double m = ub / (ub-lb);
+                Equation eq(Equation::LE);
+                eq.addAddend( 1, _relaxedVarF );
+                eq.addAddend( -m, _relaxedVarB );
+                eq.setScalar( -m*lb );
+                eqsToAdd.append(eq);
+            }
+
+            /*static int tights = 0;
+            tights += 1;
+            printf("tights %d\n", tights);*/
+        }
     }
+
+    for ( auto &eq : eqsToAdd ) {
+        _tableau->addEquation(eq);
+    }
+    _activeEntryStrategy->resizeHook( _tableau );
+    adjustWorkMemorySize();
+    _rowBoundTightener->resetBounds();
+    _constraintBoundTightener->resetBounds();
 
     struct timespec end = TimeUtils::sampleMicro();
     _statistics.addTimeForSymbolicBoundTightening( TimeUtils::timePassed( start, end ) );
