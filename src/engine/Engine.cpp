@@ -107,6 +107,9 @@ bool Engine::solve( unsigned timeoutInSeconds )
 
     applyAllValidConstraintCaseSplits();
 
+    // Add relaxed equations for all freed neurons
+    addRelaxedEquations();
+
     bool splitJustPerformed = true;
     struct timespec mainLoopStart = TimeUtils::sampleMicro();
     while ( true )
@@ -203,14 +206,11 @@ bool Engine::solve( unsigned timeoutInSeconds )
             // Perform any SmtCore-initiated case splits
             if ( _smtCore.needToSplit() )
             {
-                // Restore tableau before splitting, then re-add eqs
-                performPrecisionRestoration( PrecisionRestorer::RESTORE_BASICS );
-                //
-
                 _smtCore.performSplit();
                 splitJustPerformed = true;
 
-                // Re-add eqs
+                // Restore tableau before splitting, then re-add eqs
+                performPrecisionRestoration( PrecisionRestorer::RESTORE_BASICS );
                 addRelaxedEquations();
                 //
 
@@ -1850,6 +1850,26 @@ bool getEquation(Equation &eq, AutoTableau &_tableau, unsigned int vb, unsigned 
         eq.setScalar( -m*lb );
         return true;
     }
+}
+
+void Engine::addRelaxedEquations() {
+    List<Equation> eqsToAdd;
+    for ( auto it = _relaxedVars.begin(); it != _relaxedVars.end(); it++ ) {
+        Equation eq;
+        unsigned int vb = it->first;
+        unsigned int vf = it->second;
+        if (getEquation(eq, _tableau, vb, vf))
+            eqsToAdd.append(eq);
+    }
+
+    for ( auto &eq : eqsToAdd ) {
+        _tableau->addEquation(eq);
+    }
+    
+    _activeEntryStrategy->resizeHook( _tableau );
+    adjustWorkMemorySize();
+    _rowBoundTightener->resetBounds();
+    _constraintBoundTightener->resetBounds();
 }
 
 void Engine::performSymbolicBoundTightening()

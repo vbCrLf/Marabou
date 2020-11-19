@@ -178,6 +178,7 @@ private:
     };
 
 
+    void addRelaxedEquations();
     std::map<unsigned int, unsigned int> _relaxedVars;
 
     /*
