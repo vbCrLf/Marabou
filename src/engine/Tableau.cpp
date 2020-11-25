@@ -1633,12 +1633,19 @@ void Tableau::storeState( TableauState &state ) const
 
 void Tableau::restoreState( const TableauState &state )
 {
-    if ( (state._m_alloc >= _m_alloc) || (state._n_alloc >= _n_alloc) ) {
+    if ( (state._m_alloc > _m_alloc) || (state._n_alloc > _n_alloc) ) {
         freeMemoryIfNeeded();
         setDimensions( state._m, state._n, state._m_alloc, state._n_alloc );
     } else {
         _n = state._n;
         _m = state._m;
+
+        // The only thing needed from freeMemoryIfNeeded and setDimensions
+        if ( _basisFactorization ) delete _basisFactorization;
+        _basisFactorization = BasisFactorizationFactory::createBasisFactorization( _m, *this );
+        if ( !_basisFactorization )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::basisFactorization" );
+        _basisFactorization->setStatistics( _statistics );
     }
 
     // Restore matrix A
