@@ -210,7 +210,7 @@ bool Engine::solve( unsigned timeoutInSeconds )
                 splitJustPerformed = true;
 
                 // Restore tableau before splitting, then re-add eqs
-                performPrecisionRestoration( PrecisionRestorer::RESTORE_BASICS );
+                _precisionRestorer.restoreTableau( *this, *_tableau, _smtCore, restoreBasics );
                 addRelaxedEquations();
                 //
 
@@ -1010,7 +1010,7 @@ void Engine::initializeTableau( const double *constraintMatrix, const List<unsig
     unsigned m = equations.size();
     unsigned n = _preprocessedQuery.getNumberOfVariables();
 
-    _tableau->setDimensions( m, n );
+    _tableau->setDimensions( m, n, m, n );
 
     adjustWorkMemorySize();
 
