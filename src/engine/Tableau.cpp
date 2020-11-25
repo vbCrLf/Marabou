@@ -33,8 +33,8 @@
 
 Tableau::Tableau()
     : _n ( 0 )
-    , _m ( 0 )
     , _n_alloc( 0 )
+    , _m ( 0 )
     , _m_alloc( 0 )
     , _A( NULL )
     , _sparseColumnsOfA( NULL )
@@ -210,12 +210,12 @@ void Tableau::freeMemoryIfNeeded()
     }
 }
 
-void Tableau::setDimensions( unsigned m, unsigned n, unsigned alloc_n, unsigned alloc_m )
+void Tableau::setDimensions( unsigned m, unsigned n, unsigned alloc_m, unsigned alloc_n )
 {
     _m = m;
     _n = n;
-    _alloc_n = alloc_n;
-    _alloc_m = alloc_m;
+    _n_alloc = alloc_n;
+    _m_alloc = alloc_m;
 
     _A = new CSRMatrix();
     if ( !_A )
@@ -1930,9 +1930,9 @@ void Tableau::addRow()
         _sparseColumnsOfA = newSparseColumnsOfA;
     } else {
         for ( unsigned i = 0; i < _n; ++i ) {
-            newSparseColumnsOfA[i]->incrementSize();
+            _sparseColumnsOfA[i]->incrementSize();
         }
-        newSparseColumnsOfA[newN - 1].initialize(newM);
+        _sparseColumnsOfA[newN - 1]->initialize(newM);
     }
 
     // Allocate a larger _sparseRowsOfA, keep old ones
@@ -1955,9 +1955,9 @@ void Tableau::addRow()
         _sparseRowsOfA = newSparseRowsOfA;
     } else {
         for ( unsigned i = 0; i < _m; ++ i ) {
-            newSparseRowsOfA[i]->incrementSize();
+            _sparseRowsOfA[i]->incrementSize();
         }
-        newSparseRowsOfA[newM - 1].initialize( newN );
+        _sparseRowsOfA[newM - 1]->initialize( newN );
     }
 
     if ((newM*newN) > (_n_alloc*_m_alloc)) {
@@ -2094,7 +2094,7 @@ void Tableau::addRow()
     _basisFactorization->setStatistics( _statistics );
 
     // Allocate a larger _workM and _workN. Don't need to initialize.
-    if ( realloc_m ) {
+    if ( m_realloc ) {
         double *newWorkM = new double[newM];
         if ( !newWorkM )
             throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newWorkM" );
@@ -2102,7 +2102,7 @@ void Tableau::addRow()
         _workM = newWorkM;
     }
 
-    if ( realloc_n ) {
+    if ( n_realloc ) {
         double *newWorkN = new double[newN];
         if ( !newWorkN )
             throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newWorkN" );
@@ -2113,8 +2113,8 @@ void Tableau::addRow()
     _m = newM;
     _n = newN;
 
-    if ( realloc_m ) _m_alloc = _m;
-    if ( realloc_n ) _n_alloc = _n;
+    if ( m_realloc ) _m_alloc = _m;
+    if ( n_realloc ) _n_alloc = _n;
 
     _costFunctionManager->initialize();
 

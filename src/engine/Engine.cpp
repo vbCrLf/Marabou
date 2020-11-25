@@ -210,7 +210,7 @@ bool Engine::solve( unsigned timeoutInSeconds )
                 splitJustPerformed = true;
 
                 // Restore tableau before splitting, then re-add eqs
-                _precisionRestorer.restoreTableau( *this, *_tableau, _smtCore, restoreBasics );
+                _precisionRestorer.restoreTableau( *this, *_tableau, _smtCore, PrecisionRestorer::RESTORE_BASICS );
                 addRelaxedEquations();
                 //
 
