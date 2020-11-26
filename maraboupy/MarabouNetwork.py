@@ -45,6 +45,7 @@ class MarabouNetwork:
         self.numVars = 0
         self.equList = []
         self.reluList = []
+        self.relaxedReluList = []
         self.maxList = []
         self.absList = []
         self.signList = []
@@ -217,7 +218,10 @@ class MarabouNetwork:
 
         for r in self.reluList:
             assert r[1] < self.numVars and r[0] < self.numVars
-            MarabouCore.addReluConstraint(ipq, r[0], r[1])
+            if not r in self.relaxedReluList:
+                MarabouCore.addReluConstraint(ipq, r[0], r[1])
+            else:
+                MarabouCore.addRelaxedReluConstraint(ipq, r[0], r[1])
 
         for m in self.maxList:
             assert m[1] < self.numVars

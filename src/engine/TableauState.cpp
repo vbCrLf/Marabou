@@ -135,10 +135,12 @@ TableauState::~TableauState()
     }
 }
 
-void TableauState::setDimensions( unsigned m, unsigned n, const IBasisFactorization::BasisColumnOracle &oracle )
+void TableauState::setDimensions( unsigned m, unsigned n, unsigned m_alloc, unsigned n_alloc, const IBasisFactorization::BasisColumnOracle &oracle )
 {
     _m = m;
     _n = n;
+    _m_alloc = m_alloc;
+    _n_alloc = n_alloc;
 
     _A = new CSRMatrix();
     if ( !_A )

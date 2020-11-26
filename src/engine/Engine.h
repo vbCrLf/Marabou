@@ -180,6 +180,9 @@ private:
     };
 
 
+    void addRelaxedEquations();
+    std::map<unsigned int, unsigned int> _relaxedVars;
+
     /*
       Perform bound tightening operations that require
       access to the explicit basis matrix.

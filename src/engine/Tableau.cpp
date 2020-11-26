@@ -33,7 +33,9 @@
 
 Tableau::Tableau()
     : _n ( 0 )
+    , _n_alloc( 0 )
     , _m ( 0 )
+    , _m_alloc( 0 )
     , _A( NULL )
     , _sparseColumnsOfA( NULL )
     , _sparseRowsOfA( NULL )
@@ -208,10 +210,12 @@ void Tableau::freeMemoryIfNeeded()
     }
 }
 
-void Tableau::setDimensions( unsigned m, unsigned n )
+void Tableau::setDimensions( unsigned m, unsigned n, unsigned alloc_m, unsigned alloc_n )
 {
     _m = m;
     _n = n;
+    _n_alloc = alloc_n;
+    _m_alloc = alloc_m;
 
     _A = new CSRMatrix();
     if ( !_A )
@@ -321,9 +325,9 @@ void Tableau::setConstraintMatrix( const double *A )
     for ( unsigned column = 0; column < _n; ++column )
     {
         for ( unsigned row = 0; row < _m; ++row )
-            _denseA[column*_m + row] = A[row*_n + column];
+            _denseA[column*_m_alloc + row] = A[row*_n + column];
 
-        _sparseColumnsOfA[column]->initialize( _denseA + ( column * _m ), _m );
+        _sparseColumnsOfA[column]->initialize( _denseA + ( column * _m_alloc ), _m );
     }
 
     for ( unsigned row = 0; row < _m; ++row )
@@ -1547,7 +1551,7 @@ const SparseMatrix *Tableau::getSparseA() const
 
 const double *Tableau::getAColumn( unsigned variable ) const
 {
-    return _denseA + ( variable * _m );
+    return _denseA + ( variable * _m_alloc );
 }
 
 void Tableau::getSparseAColumn( unsigned variable, SparseUnsortedList *result ) const
@@ -1587,7 +1591,7 @@ void Tableau::dumpEquations()
 void Tableau::storeState( TableauState &state ) const
 {
     // Set the dimensions
-    state.setDimensions( _m, _n, *this );
+    state.setDimensions( _m, _n, _m_alloc, _n_alloc, *this );
 
     // Store matrix A
     _A->storeIntoOther( state._A );
@@ -1595,7 +1599,7 @@ void Tableau::storeState( TableauState &state ) const
         _sparseColumnsOfA[i]->storeIntoOther( state._sparseColumnsOfA[i] );
     for ( unsigned i = 0; i < _m; ++i )
         _sparseRowsOfA[i]->storeIntoOther( state._sparseRowsOfA[i] );
-    memcpy( state._denseA, _denseA, sizeof(double) * _m * _n );
+    memcpy( state._denseA, _denseA, sizeof(double) * _m_alloc * _n_alloc );
 
     // Store right hand side vector _b
     memcpy( state._b, _b, sizeof(double) * _m );
@@ -1629,8 +1633,20 @@ void Tableau::storeState( TableauState &state ) const
 
 void Tableau::restoreState( const TableauState &state )
 {
-    freeMemoryIfNeeded();
-    setDimensions( state._m, state._n );
+    if ( (state._m_alloc > _m_alloc) || (state._n_alloc > _n_alloc) ) {
+        freeMemoryIfNeeded();
+        setDimensions( state._m, state._n, state._m_alloc, state._n_alloc );
+    } else {
+        _n = state._n;
+        _m = state._m;
+
+        // The only thing needed from freeMemoryIfNeeded and setDimensions
+        if ( _basisFactorization ) delete _basisFactorization;
+        _basisFactorization = BasisFactorizationFactory::createBasisFactorization( _m, *this );
+        if ( !_basisFactorization )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::basisFactorization" );
+        _basisFactorization->setStatistics( _statistics );
+    }
 
     // Restore matrix A
     state._A->storeIntoOther( _A );
@@ -1638,7 +1654,7 @@ void Tableau::restoreState( const TableauState &state )
         state._sparseColumnsOfA[i]->storeIntoOther( _sparseColumnsOfA[i] );
     for ( unsigned i = 0; i < _m; ++i )
         state._sparseRowsOfA[i]->storeIntoOther( _sparseRowsOfA[i] );
-    memcpy( _denseA, state._denseA, sizeof(double) * _m * _n );
+    memcpy( _denseA, state._denseA, sizeof(double) * _m_alloc * _n_alloc );
 
     // Restore right hand side vector _b
     memcpy( _b, state._b, sizeof(double) * _m );
@@ -1782,13 +1798,13 @@ unsigned Tableau::addEquation( const Equation &equation )
         _workN[addend._variable] = addend._coefficient;
         _sparseColumnsOfA[addend._variable]->set( _m - 1, addend._coefficient );
         _sparseRowsOfA[_m - 1]->set( addend._variable, addend._coefficient );
-        _denseA[(addend._variable * _m) + _m - 1] = addend._coefficient;
+        _denseA[(addend._variable * _m_alloc) + _m - 1] = addend._coefficient;
     }
 
     _workN[auxVariable] = 1;
     _sparseColumnsOfA[auxVariable]->set( _m - 1, 1 );
     _sparseRowsOfA[_m - 1]->set( auxVariable, 1 );
-    _denseA[(auxVariable * _m) + _m - 1] = 1;
+    _denseA[(auxVariable * _m_alloc) + _m - 1] = 1;
     _A->addLastRow( _workN );
 
     // Invalidate the cost function, so that it is recomputed in the next iteration.
@@ -1891,6 +1907,9 @@ void Tableau::addRow()
     unsigned newM = _m + 1;
     unsigned newN = _n + 1;
 
+    bool n_realloc = newN > _n_alloc;
+    bool m_realloc = newM > _m_alloc;
+
     /*
       This function increases the sizes of the data structures used by
       the tableau to match newM and newN. Notice that newM = _m + 1 and
@@ -1899,130 +1918,174 @@ void Tableau::addRow()
     */
 
     // Allocate a larger _sparseColumnsOfA, keep old ones
-    SparseUnsortedList **newSparseColumnsOfA = new SparseUnsortedList *[newN];
-    if ( !newSparseColumnsOfA )
-        throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newSparseColumnsOfA" );
+    if ( n_realloc ) {
+        SparseUnsortedList **newSparseColumnsOfA = new SparseUnsortedList *[newN];
+        if ( !newSparseColumnsOfA )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newSparseColumnsOfA" );
 
-    for ( unsigned i = 0; i < _n; ++i )
-    {
-        newSparseColumnsOfA[i] = _sparseColumnsOfA[i];
-        newSparseColumnsOfA[i]->incrementSize();
+        for ( unsigned i = 0; i < _n; ++i )
+        {
+            newSparseColumnsOfA[i] = _sparseColumnsOfA[i];
+            newSparseColumnsOfA[i]->incrementSize();
+        }
+
+        newSparseColumnsOfA[newN - 1] = new SparseUnsortedList( newM );
+        if ( !newSparseColumnsOfA[newN - 1] )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newSparseColumnsOfA[newN-1]" );
+
+        delete[] _sparseColumnsOfA;
+        _sparseColumnsOfA = newSparseColumnsOfA;
+    } else {
+        for ( unsigned i = 0; i < _n; ++i ) {
+            _sparseColumnsOfA[i]->incrementSize();
+        }
+        _sparseColumnsOfA[newN - 1]->initialize(newM);
     }
-
-    newSparseColumnsOfA[newN - 1] = new SparseUnsortedList( newM );
-    if ( !newSparseColumnsOfA[newN - 1] )
-        throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newSparseColumnsOfA[newN-1]" );
-
-    delete[] _sparseColumnsOfA;
-    _sparseColumnsOfA = newSparseColumnsOfA;
 
     // Allocate a larger _sparseRowsOfA, keep old ones
-    SparseUnsortedList **newSparseRowsOfA = new SparseUnsortedList *[newM];
-    if ( !newSparseRowsOfA )
-        throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newSparseRowsOfA" );
+    if ( m_realloc ) {
+        SparseUnsortedList **newSparseRowsOfA = new SparseUnsortedList *[newM];
+        if ( !newSparseRowsOfA )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newSparseRowsOfA" );
 
-    for ( unsigned i = 0; i < _m; ++i )
-    {
-        newSparseRowsOfA[i] = _sparseRowsOfA[i];
-        newSparseRowsOfA[i]->incrementSize();
+        for ( unsigned i = 0; i < _m; ++i )
+        {
+            newSparseRowsOfA[i] = _sparseRowsOfA[i];
+            newSparseRowsOfA[i]->incrementSize();
+        }
+
+        newSparseRowsOfA[newM - 1] = new SparseUnsortedList( newN );
+        if ( !newSparseRowsOfA[newM - 1] )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newSparseRowsOfA[newN-1]" );
+
+        delete[] _sparseRowsOfA;
+        _sparseRowsOfA = newSparseRowsOfA;
+    } else {
+        for ( unsigned i = 0; i < _m; ++ i ) {
+            _sparseRowsOfA[i]->incrementSize();
+        }
+        _sparseRowsOfA[newM - 1]->initialize( newN );
     }
 
-    newSparseRowsOfA[newM - 1] = new SparseUnsortedList( newN );
-    if ( !newSparseRowsOfA[newM - 1] )
-        throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newSparseRowsOfA[newN-1]" );
+    if ((newM*newN) > (_n_alloc*_m_alloc)) {
+        // Allocate a larger _denseA, keep old entries
+        double *newDenseA = new double[newM * newN];
+        if ( !newDenseA )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newDenseA" );
 
-    delete[] _sparseRowsOfA;
-    _sparseRowsOfA = newSparseRowsOfA;
+        for ( unsigned column = 0; column < _n; ++column )
+        {
+            memcpy( newDenseA + ( column * newM ), _denseA + ( column * _m_alloc ), sizeof(double) * _m );
+            newDenseA[column*newM + newM - 1] = 0.0;
+        }
+        std::fill_n( newDenseA + ( newN - 1 ) * newM, newM, 0.0 );
 
-    // Allocate a larger _denseA, keep old entries
-    double *newDenseA = new double[newM * newN];
-    if ( !newDenseA )
-        throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newDenseA" );
-
-    for ( unsigned column = 0; column < _n; ++column )
-    {
-        memcpy( newDenseA + ( column * newM ), _denseA + ( column * _m ), sizeof(double) * _m );
-        newDenseA[column*newM + newM - 1] = 0.0;
+        delete[] _denseA;
+        _denseA = newDenseA;
+    } else {
+        for ( unsigned column = 0; column < _n; ++column )
+        {
+            _denseA[column*_m_alloc + newM - 1] = 0.0;
+        }
+        std::fill_n( _denseA + ( newN - 1 ) * _m_alloc, newM, 0.0 );
     }
-    std::fill_n( newDenseA + ( newN - 1 ) * newM, newM, 0.0 );
-
-    delete[] _denseA;
-    _denseA = newDenseA;
 
     // Allocate a new changeColumn. Don't need to initialize
-    double *newChangeColumn = new double[newM];
-    if ( !newChangeColumn )
-        throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newChangeColumn" );
-    delete[] _changeColumn;
-    _changeColumn = newChangeColumn;
+    if ( m_realloc ) {
+        double *newChangeColumn = new double[newM];
+        if ( !newChangeColumn )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newChangeColumn" );
+        delete[] _changeColumn;
+        _changeColumn = newChangeColumn;
+    }
 
     // Allocate a new b and copy the old values
-    double *newB = new double[newM];
-    if ( !newB )
-        throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newB" );
-    std::fill( newB + _m, newB + newM, 0.0 );
-    memcpy( newB, _b, _m * sizeof(double) );
-    delete[] _b;
-    _b = newB;
+    if ( m_realloc ) {
+        double *newB = new double[newM];
+        if ( !newB )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newB" );
+        std::fill( newB + _m, newB + newM, 0.0 );
+        memcpy( newB, _b, _m * sizeof(double) );
+        delete[] _b;
+        _b = newB;
+    } else {
+        std::fill( _b + _m, _b + newM, 0.0 );
+    }
 
     // Allocate a new unit vector. Don't need to initialize
-    double *newUnitVector = new double[newM];
-    if ( !newUnitVector )
-        throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newUnitVector" );
-    delete[] _unitVector;
-    _unitVector = newUnitVector;
+    if ( m_realloc ) {
+        double *newUnitVector = new double[newM];
+        if ( !newUnitVector )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newUnitVector" );
+        delete[] _unitVector;
+        _unitVector = newUnitVector;
+    }
 
     // Allocate new multipliers. Don't need to initialize
-    double *newMultipliers = new double[newM];
-    if ( !newMultipliers )
-        throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newMultipliers" );
-    delete[] _multipliers;
-    _multipliers = newMultipliers;
+    if ( m_realloc ) {
+        double *newMultipliers = new double[newM];
+        if ( !newMultipliers )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newMultipliers" );
+        delete[] _multipliers;
+        _multipliers = newMultipliers;
+    }
 
     // Allocate new index arrays. Copy old indices, but don't assign indices to new variables yet.
-    unsigned *newBasicIndexToVariable = new unsigned[newM];
-    if ( !newBasicIndexToVariable )
-        throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newBasicIndexToVariable" );
-    memcpy( newBasicIndexToVariable, _basicIndexToVariable, _m * sizeof(unsigned) );
-    delete[] _basicIndexToVariable;
-    _basicIndexToVariable = newBasicIndexToVariable;
+    if ( m_realloc ) {
+        unsigned *newBasicIndexToVariable = new unsigned[newM];
+        if ( !newBasicIndexToVariable )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newBasicIndexToVariable" );
+        memcpy( newBasicIndexToVariable, _basicIndexToVariable, _m * sizeof(unsigned) );
+        delete[] _basicIndexToVariable;
+        _basicIndexToVariable = newBasicIndexToVariable;
+    }
 
-    unsigned *newVariableToIndex = new unsigned[newN];
-    if ( !newVariableToIndex )
-        throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newVariableToIndex" );
-    memcpy( newVariableToIndex, _variableToIndex, _n * sizeof(unsigned) );
-    delete[] _variableToIndex;
-    _variableToIndex = newVariableToIndex;
+    if ( n_realloc ) {
+        unsigned *newVariableToIndex = new unsigned[newN];
+        if ( !newVariableToIndex )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newVariableToIndex" );
+        memcpy( newVariableToIndex, _variableToIndex, _n * sizeof(unsigned) );
+        delete[] _variableToIndex;
+        _variableToIndex = newVariableToIndex;
+    }
 
     // Allocate a new basic assignment vector, copy old values
-    double *newBasicAssignment = new double[newM];
-    if ( !newBasicAssignment )
-        throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newAssignment" );
-    memcpy( newBasicAssignment, _basicAssignment, sizeof(double) * _m );
-    delete[] _basicAssignment;
-    _basicAssignment = newBasicAssignment;
+    if ( m_realloc ) {
+        double *newBasicAssignment = new double[newM];
+        if ( !newBasicAssignment )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newAssignment" );
+        memcpy( newBasicAssignment, _basicAssignment, sizeof(double) * _m );
+        delete[] _basicAssignment;
+        _basicAssignment = newBasicAssignment;
+    }
 
-    unsigned *newBasicStatus = new unsigned[newM];
-    if ( !newBasicStatus )
-        throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newBasicStatus" );
-    memcpy( newBasicStatus, _basicStatus, sizeof(unsigned) * _m );
-    delete[] _basicStatus;
-    _basicStatus = newBasicStatus;
+    if ( m_realloc ) {
+        unsigned *newBasicStatus = new unsigned[newM];
+        if ( !newBasicStatus )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newBasicStatus" );
+        memcpy( newBasicStatus, _basicStatus, sizeof(unsigned) * _m );
+        delete[] _basicStatus;
+        _basicStatus = newBasicStatus;
+    }
 
     // Allocate new lower and upper bound arrays, and copy old values
-    double *newLowerBounds = new double[newN];
-    if ( !newLowerBounds )
-        throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newLowerBounds" );
-    memcpy( newLowerBounds, _lowerBounds, _n * sizeof(double) );
-    delete[] _lowerBounds;
-    _lowerBounds = newLowerBounds;
+    if ( n_realloc ) {
+        double *newLowerBounds = new double[newN];
+        if ( !newLowerBounds )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newLowerBounds" );
+        memcpy( newLowerBounds, _lowerBounds, _n * sizeof(double) );
+        delete[] _lowerBounds;
+        _lowerBounds = newLowerBounds;
+    }
 
-    double *newUpperBounds = new double[newN];
-    if ( !newUpperBounds )
-        throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newUpperBounds" );
-    memcpy( newUpperBounds, _upperBounds, _n * sizeof(double) );
-    delete[] _upperBounds;
-    _upperBounds = newUpperBounds;
+    if ( n_realloc ) {
+        double *newUpperBounds = new double[newN];
+        if ( !newUpperBounds )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newUpperBounds" );
+        memcpy( newUpperBounds, _upperBounds, _n * sizeof(double) );
+        delete[] _upperBounds;
+        _upperBounds = newUpperBounds;
+    }
 
     // Mark the new variable as unbounded
     _lowerBounds[_n] = FloatUtils::negativeInfinity();
@@ -2038,20 +2101,28 @@ void Tableau::addRow()
     _basisFactorization->setStatistics( _statistics );
 
     // Allocate a larger _workM and _workN. Don't need to initialize.
-    double *newWorkM = new double[newM];
-    if ( !newWorkM )
-        throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newWorkM" );
-    delete[] _workM;
-    _workM = newWorkM;
+    if ( m_realloc ) {
+        double *newWorkM = new double[newM];
+        if ( !newWorkM )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newWorkM" );
+        delete[] _workM;
+        _workM = newWorkM;
+    }
 
-    double *newWorkN = new double[newN];
-    if ( !newWorkN )
-        throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newWorkN" );
-    delete[] _workN;
-    _workN = newWorkN;
+    if ( n_realloc ) {
+        double *newWorkN = new double[newN];
+        if ( !newWorkN )
+            throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newWorkN" );
+        delete[] _workN;
+        _workN = newWorkN;
+    }
 
     _m = newM;
     _n = newN;
+
+    if ( m_realloc ) _m_alloc = _m;
+    if ( n_realloc ) _n_alloc = _n;
+
     _costFunctionManager->initialize();
 
     for ( const auto &watcher : _resizeWatchers )
@@ -2510,8 +2581,8 @@ void Tableau::mergeColumns( unsigned x1, unsigned x2 )
 
     // And the dense ones, too
     for ( unsigned i = 0; i < _m; ++i )
-        _denseA[x1*_m + i] += _denseA[x2*_m + i];
-    std::fill_n( _denseA + x2 * _m, _m, 0 );
+        _denseA[x1*_m_alloc + i] += _denseA[x2*_m_alloc + i];
+    std::fill_n( _denseA + x2 * _m_alloc, _m, 0 );
 
     computeAssignment();
     computeCostFunction();
