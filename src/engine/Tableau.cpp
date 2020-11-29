@@ -211,7 +211,7 @@ void Tableau::freeMemoryIfNeeded()
 }
 
 void Tableau::setDimensions( unsigned m, unsigned n, unsigned alloc_m, unsigned alloc_n )
-{
+{ 
     _m = m;
     _n = n;
     _n_alloc = alloc_n;
@@ -2007,6 +2007,9 @@ void Tableau::addRow()
         _changeColumn = newChangeColumn;
     }
 
+    // Size of pivot row is the same. Just reset. TODO: Not sure if really needed
+    _pivotRow->reset();
+
     // Allocate a new b and copy the old values
     if ( m_realloc ) {
         double *newB = new double[newM];
@@ -2056,6 +2059,8 @@ void Tableau::addRow()
         delete[] _variableToIndex;
         _variableToIndex = newVariableToIndex;
     }
+
+    // nonBasicIndexToVariable and nonBasicAssignment - I think no init required
 
     // Allocate a new basic assignment vector, copy old values
     if ( m_realloc ) {
