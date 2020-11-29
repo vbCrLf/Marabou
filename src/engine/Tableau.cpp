@@ -1641,9 +1641,6 @@ void Tableau::restoreState( const TableauState &state )
         _m = state._m;
 
         // The only thing needed from freeMemoryIfNeeded and setDimensions
-        std::fill_n( _lowerBounds, _n_alloc, FloatUtils::negativeInfinity() );
-        std::fill_n( _upperBounds, _n_alloc, FloatUtils::infinity() );
-
         _pivotRow->reset();
 
         if ( _basisFactorization ) delete _basisFactorization;
