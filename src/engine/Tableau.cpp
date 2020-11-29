@@ -1654,7 +1654,9 @@ void Tableau::restoreState( const TableauState &state )
         state._sparseColumnsOfA[i]->storeIntoOther( _sparseColumnsOfA[i] );
     for ( unsigned i = 0; i < _m; ++i )
         state._sparseRowsOfA[i]->storeIntoOther( _sparseRowsOfA[i] );
-    memcpy( _denseA, state._denseA, sizeof(double) * _m_alloc * _n_alloc );
+
+    for ( unsigned i = 0; i < _m; ++i )
+        memcpy( _denseA + i*_m_alloc, state._denseA + i*state._m_alloc, sizeof(double) * _n );
 
     // Restore right hand side vector _b
     memcpy( _b, state._b, sizeof(double) * _m );
