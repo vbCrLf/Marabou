@@ -1912,6 +1912,12 @@ void Tableau::addRow()
     bool n_realloc = newN > _n_alloc;
     bool m_realloc = newM > _m_alloc;
 
+    // n_realloc = true;
+    // m_realloc = true;
+
+    unsigned new_n_alloc = n_realloc ? newN : _n_alloc;
+    unsigned new_m_alloc = m_realloc ? newM : _m_alloc;
+
     /*
       This function increases the sizes of the data structures used by
       the tableau to match newM and newN. Notice that newM = _m + 1 and
@@ -1970,9 +1976,6 @@ void Tableau::addRow()
     }
 
     if ( m_realloc || n_realloc ) {
-        unsigned new_m_alloc = m_realloc ? newM : _m_alloc;
-        unsigned new_n_alloc = n_realloc ? newN : _n_alloc;
-
         // Allocate a larger _denseA, keep old entries
         double *newDenseA = new double[new_m_alloc*new_n_alloc];
         if ( !newDenseA )
@@ -2125,8 +2128,8 @@ void Tableau::addRow()
     _m = newM;
     _n = newN;
 
-    if ( m_realloc ) _m_alloc = _m;
-    if ( n_realloc ) _n_alloc = _n;
+    _m_alloc = new_m_alloc;
+    _n_alloc = new_n_alloc;
 
     _costFunctionManager->initialize();
 
