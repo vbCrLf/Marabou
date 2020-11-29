@@ -243,7 +243,7 @@ void Tableau::setDimensions( unsigned m, unsigned n, unsigned alloc_m, unsigned 
             throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::sparseRowOfA[i]" );
     }
 
-    _denseA = new double[m*n];
+    _denseA = new double[_m_alloc*_n_alloc];
     if ( !_denseA )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::denseA" );
 
