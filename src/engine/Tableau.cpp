@@ -212,31 +212,33 @@ void Tableau::freeMemoryIfNeeded()
 
 void Tableau::setDimensions( unsigned m, unsigned n, unsigned alloc_m, unsigned alloc_n )
 { 
+
     _m = m;
     _n = n;
     _n_alloc = alloc_n;
     _m_alloc = alloc_m;
+    printf(" *** %d,%d  %d,%d *****\n", _m, _n, _m_alloc, _n_alloc);
 
     _A = new CSRMatrix();
     if ( !_A )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::A" );
 
-    _sparseColumnsOfA = new SparseUnsortedList *[n];
+    _sparseColumnsOfA = new SparseUnsortedList *[alloc_n];
     if ( !_sparseColumnsOfA )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::sparseColumnsOfA" );
 
-    for ( unsigned i = 0; i < n; ++i )
+    for ( unsigned i = 0; i < alloc_n; ++i )
     {
         _sparseColumnsOfA[i] = new SparseUnsortedList( _m );
         if ( !_sparseColumnsOfA[i] )
             throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::sparseColumnsOfA[i]" );
     }
 
-    _sparseRowsOfA = new SparseUnsortedList *[m];
+    _sparseRowsOfA = new SparseUnsortedList *[alloc_m];
     if ( !_sparseRowsOfA )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::sparseRowOfA" );
 
-    for ( unsigned i = 0; i < m; ++i )
+    for ( unsigned i = 0; i < alloc_m; ++i )
     {
         _sparseRowsOfA[i] = new SparseUnsortedList( _n );
         if ( !_sparseRowsOfA[i] )
@@ -247,7 +249,7 @@ void Tableau::setDimensions( unsigned m, unsigned n, unsigned alloc_m, unsigned 
     if ( !_denseA )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::denseA" );
 
-    _changeColumn = new double[m];
+    _changeColumn = new double[alloc_m];
     if ( !_changeColumn )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::changeColumn" );
 
@@ -255,23 +257,23 @@ void Tableau::setDimensions( unsigned m, unsigned n, unsigned alloc_m, unsigned 
     if ( !_pivotRow )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::pivotRow" );
 
-    _b = new double[m];
+    _b = new double[alloc_m];
     if ( !_b )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::b" );
 
-    _unitVector = new double[m];
+    _unitVector = new double[alloc_m];
     if ( !_unitVector )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::unitVector" );
 
-    _multipliers = new double[m];
+    _multipliers = new double[alloc_m];
     if ( !_multipliers )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::multipliers" );
 
-    _basicIndexToVariable = new unsigned[m];
+    _basicIndexToVariable = new unsigned[alloc_m];
     if ( !_basicIndexToVariable )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::basicIndexToVariable" );
 
-    _variableToIndex = new unsigned[n];
+    _variableToIndex = new unsigned[alloc_n];
     if ( !_variableToIndex )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::variableToIndex" );
 
@@ -283,21 +285,21 @@ void Tableau::setDimensions( unsigned m, unsigned n, unsigned alloc_m, unsigned 
     if ( !_nonBasicAssignment )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::nonBasicAssignment" );
 
-    _lowerBounds = new double[n];
+    _lowerBounds = new double[alloc_n];
     if ( !_lowerBounds )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::lowerBounds" );
-    std::fill_n( _lowerBounds, n, FloatUtils::negativeInfinity() );
+    std::fill_n( _lowerBounds, alloc_n, FloatUtils::negativeInfinity() );
 
-    _upperBounds = new double[n];
+    _upperBounds = new double[alloc_n];
     if ( !_upperBounds )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::upperBounds" );
-    std::fill_n( _upperBounds, n, FloatUtils::infinity() );
+    std::fill_n( _upperBounds, alloc_n, FloatUtils::infinity() );
 
-    _basicAssignment = new double[m];
+    _basicAssignment = new double[alloc_m];
     if ( !_basicAssignment )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::assignment" );
 
-    _basicStatus = new unsigned[m];
+    _basicStatus = new unsigned[alloc_m];
     if ( !_basicStatus )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::basicStatus" );
 
@@ -306,11 +308,11 @@ void Tableau::setDimensions( unsigned m, unsigned n, unsigned alloc_m, unsigned 
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::basisFactorization" );
     _basisFactorization->setStatistics( _statistics );
 
-    _workM = new double[m];
+    _workM = new double[alloc_m];
     if ( !_workM )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::work" );
 
-    _workN = new double[n];
+    _workN = new double[alloc_n];
     if ( !_workN )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::work" );
 
@@ -1590,6 +1592,8 @@ void Tableau::dumpEquations()
 
 void Tableau::storeState( TableauState &state ) const
 {
+    printf(" !!!!!!! %d,%d  %d,%d !!!!!!!\n", _m, _n, _m_alloc, _n_alloc);
+
     // Set the dimensions
     state.setDimensions( _m, _n, _m_alloc, _n_alloc, *this );
 
@@ -1633,14 +1637,21 @@ void Tableau::storeState( TableauState &state ) const
 
 void Tableau::restoreState( const TableauState &state )
 {
+    // TODO TODO TODO: Remove 1
     if ( (state._m_alloc > _m_alloc) || (state._n_alloc > _n_alloc) ) {
         freeMemoryIfNeeded();
+        printf(" ---- %d,%d  %d,%d -----\n", state._m, state._n, state._m_alloc, state._n_alloc);
         setDimensions( state._m, state._n, state._m_alloc, state._n_alloc );
     } else {
         _n = state._n;
         _m = state._m;
 
         // The only thing needed from freeMemoryIfNeeded and setDimensions
+        std::fill_n( _lowerBounds, _n_alloc, FloatUtils::negativeInfinity() );
+        std::fill_n( _upperBounds, _n_alloc, FloatUtils::infinity() );
+
+        _pivotRow->reset();
+
         if ( _basisFactorization ) delete _basisFactorization;
         _basisFactorization = BasisFactorizationFactory::createBasisFactorization( _m, *this );
         if ( !_basisFactorization )
@@ -1653,10 +1664,15 @@ void Tableau::restoreState( const TableauState &state )
     for ( unsigned i = 0; i < _n; ++i )
         state._sparseColumnsOfA[i]->storeIntoOther( _sparseColumnsOfA[i] );
     for ( unsigned i = 0; i < _m; ++i )
-        state._sparseRowsOfA[i]->storeIntoOther( _sparseRowsOfA[i] );
+        state._sparseRowsOfA[i]->storeIntoOther( _sparseRowsOfA[i] ); 
 
-    for ( unsigned i = 0; i < _m; ++i )
-        memcpy( _denseA + i*_m_alloc, state._denseA + i*state._m_alloc, sizeof(double) * _n );
+    // TODO: RESTORE THIS!!
+    // _m=202, _n=509, _m_alloc=202, state._m_alloc=202
+    printf(" ---- WUTTT %d,%d  %d,%d -----\n", _m, _m_alloc, state._m_alloc, _n);
+    // memcpy( _denseA, state._denseA, sizeof(double) * _m * _n );
+    for ( unsigned column = 0; column < _n; ++column ) {
+        memcpy( _denseA + ( column * _m_alloc ), state._denseA + ( column * state._m_alloc ), sizeof(double) * _m );
+    }
 
     // Restore right hand side vector _b
     memcpy( _b, state._b, sizeof(double) * _m );
@@ -1912,11 +1928,11 @@ void Tableau::addRow()
     bool n_realloc = newN > _n_alloc;
     bool m_realloc = newM > _m_alloc;
 
-    // n_realloc = true;
-    // m_realloc = true;
-
     unsigned new_n_alloc = n_realloc ? newN : _n_alloc;
     unsigned new_m_alloc = m_realloc ? newM : _m_alloc;
+
+    if (!n_realloc && !m_realloc) printf(" **** NO REALLOC! ****\n");
+    else printf(" **** REALLOC! %d, %d ****\n", n_realloc, m_realloc);
 
     /*
       This function increases the sizes of the data structures used by
@@ -2007,9 +2023,6 @@ void Tableau::addRow()
         _changeColumn = newChangeColumn;
     }
 
-    // Size of pivot row is the same. Just reset. TODO: Not sure if really needed
-    _pivotRow->reset();
-
     // Allocate a new b and copy the old values
     if ( m_realloc ) {
         double *newB = new double[newM];
@@ -2059,8 +2072,6 @@ void Tableau::addRow()
         delete[] _variableToIndex;
         _variableToIndex = newVariableToIndex;
     }
-
-    // nonBasicIndexToVariable and nonBasicAssignment - I think no init required
 
     // Allocate a new basic assignment vector, copy old values
     if ( m_realloc ) {
