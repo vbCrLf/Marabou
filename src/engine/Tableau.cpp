@@ -211,13 +211,11 @@ void Tableau::freeMemoryIfNeeded()
 }
 
 void Tableau::setDimensions( unsigned m, unsigned n, unsigned alloc_m, unsigned alloc_n )
-{ 
-
+{
     _m = m;
     _n = n;
     _n_alloc = alloc_n;
     _m_alloc = alloc_m;
-    printf(" *** %d,%d  %d,%d *****\n", _m, _n, _m_alloc, _n_alloc);
 
     _A = new CSRMatrix();
     if ( !_A )
@@ -1592,8 +1590,6 @@ void Tableau::dumpEquations()
 
 void Tableau::storeState( TableauState &state ) const
 {
-    printf(" !!!!!!! %d,%d  %d,%d !!!!!!!\n", _m, _n, _m_alloc, _n_alloc);
-
     // Set the dimensions
     state.setDimensions( _m, _n, _m_alloc, _n_alloc, *this );
 
@@ -1637,10 +1633,8 @@ void Tableau::storeState( TableauState &state ) const
 
 void Tableau::restoreState( const TableauState &state )
 {
-    // TODO TODO TODO: Remove 1
     if ( (state._m_alloc > _m_alloc) || (state._n_alloc > _n_alloc) ) {
         freeMemoryIfNeeded();
-        printf(" ---- %d,%d  %d,%d -----\n", state._m, state._n, state._m_alloc, state._n_alloc);
         setDimensions( state._m, state._n, state._m_alloc, state._n_alloc );
     } else {
         _n = state._n;
@@ -1666,10 +1660,6 @@ void Tableau::restoreState( const TableauState &state )
     for ( unsigned i = 0; i < _m; ++i )
         state._sparseRowsOfA[i]->storeIntoOther( _sparseRowsOfA[i] ); 
 
-    // TODO: RESTORE THIS!!
-    // _m=202, _n=509, _m_alloc=202, state._m_alloc=202
-    printf(" ---- WUTTT %d,%d  %d,%d -----\n", _m, _m_alloc, state._m_alloc, _n);
-    // memcpy( _denseA, state._denseA, sizeof(double) * _m * _n );
     for ( unsigned column = 0; column < _n; ++column ) {
         memcpy( _denseA + ( column * _m_alloc ), state._denseA + ( column * state._m_alloc ), sizeof(double) * _m );
     }
@@ -1930,9 +1920,6 @@ void Tableau::addRow()
 
     unsigned new_n_alloc = n_realloc ? newN : _n_alloc;
     unsigned new_m_alloc = m_realloc ? newM : _m_alloc;
-
-    if (!n_realloc && !m_realloc) printf(" **** NO REALLOC! ****\n");
-    else printf(" **** REALLOC! %d, %d ****\n", n_realloc, m_realloc);
 
     /*
       This function increases the sizes of the data structures used by

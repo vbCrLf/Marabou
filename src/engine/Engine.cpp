@@ -210,15 +210,11 @@ bool Engine::solve( unsigned timeoutInSeconds )
                 splitJustPerformed = true;
 
                 // Restore tableau before splitting, then re-add eqs
-                printf(" ** Case split performed, restoring tableau and readding eqs\n");
                 _precisionRestorer.restoreTableau( *this, *_tableau, _smtCore, PrecisionRestorer::RESTORE_BASICS );
-                //_precisionRestorer.restorePrecision( *this, *_tableau, _smtCore, PrecisionRestorer::RESTORE_BASICS );
-                //performPrecisionRestoration( PrecisionRestorer::RESTORE_BASICS );
                 _basisRestorationRequired = Engine::RESTORATION_NOT_NEEDED;
                 _rowBoundTightener->clear();
                 _constraintBoundTightener->resetBounds();
                 addRelaxedEquations();
-                printf(" ** FINISHED\n");
                 //
 
                 continue;

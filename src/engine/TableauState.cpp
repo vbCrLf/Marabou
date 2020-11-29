@@ -142,8 +142,6 @@ void TableauState::setDimensions( unsigned m, unsigned n, unsigned m_alloc, unsi
     _m_alloc = m_alloc;
     _n_alloc = n_alloc;
 
-    printf(" -++- %d,%d  %d,%d -++-\n", _m, _n, _m_alloc, _n_alloc);
-
     _A = new CSRMatrix();
     if ( !_A )
         throw MarabouError( MarabouError::ALLOCATION_FAILED, "TableauState::A" );
