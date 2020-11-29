@@ -1969,18 +1969,21 @@ void Tableau::addRow()
         _sparseRowsOfA[newM - 1]->initialize( newN );
     }
 
-    if ((newM*newN) > (_n_alloc*_m_alloc)) {
+    if ( m_realloc || n_realloc ) {
+        unsigned new_m_alloc = m_realloc ? newM : _m_alloc;
+        unsigned new_n_alloc = n_realloc ? newN : _n_alloc;
+
         // Allocate a larger _denseA, keep old entries
-        double *newDenseA = new double[newM * newN];
+        double *newDenseA = new double[new_m_alloc*new_n_alloc];
         if ( !newDenseA )
             throw MarabouError( MarabouError::ALLOCATION_FAILED, "Tableau::newDenseA" );
 
         for ( unsigned column = 0; column < _n; ++column )
         {
-            memcpy( newDenseA + ( column * newM ), _denseA + ( column * _m_alloc ), sizeof(double) * _m );
-            newDenseA[column*newM + newM - 1] = 0.0;
+            memcpy( newDenseA + ( column * new_m_alloc ), _denseA + ( column * _m_alloc ), sizeof(double) * _m );
+            newDenseA[column*new_m_alloc + newM - 1] = 0.0;
         }
-        std::fill_n( newDenseA + ( newN - 1 ) * newM, newM, 0.0 );
+        std::fill_n( newDenseA + ( newN - 1 ) * new_m_alloc, newM, 0.0 );
 
         delete[] _denseA;
         _denseA = newDenseA;
