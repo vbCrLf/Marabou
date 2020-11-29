@@ -212,6 +212,9 @@ bool Engine::solve( unsigned timeoutInSeconds )
                 // Restore tableau before splitting, then re-add eqs
                 _precisionRestorer.restoreTableau( *this, *_tableau, _smtCore, PrecisionRestorer::RESTORE_BASICS );
                 addRelaxedEquations();
+                _basisRestorationRequired = Engine::RESTORATION_NOT_NEEDED;
+                _rowBoundTightener->clear();
+                _constraintBoundTightener->resetBounds();
                 //
 
                 continue;
@@ -1743,8 +1746,10 @@ void Engine::performPrecisionRestoration( PrecisionRestorer::RestoreBasics resto
                     after,
                     afterSecond );
 
-        if ( highDegradation() )
+        if ( highDegradation() ) {
+            printf(" ** High degradaion again **\n");
             throw MarabouError( MarabouError::RESTORATION_FAILED_TO_RESTORE_PRECISION );
+        }
     }
 }
 
