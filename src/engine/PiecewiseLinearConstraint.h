@@ -106,7 +106,7 @@ public:
 
     virtual bool isActive() const
     {
-        return _constraintActive && !_constraintRelaxed;
+        return _constraintActive; // && !_constraintRelaxed;
     }
 
     virtual void setRelaxed( bool relaxed )
