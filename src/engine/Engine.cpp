@@ -31,8 +31,7 @@
 #include "TimeUtils.h"
 
 Engine::Engine()
-    : _eqsAdded(0)
-    , _rowBoundTightener( *_tableau )
+    : _rowBoundTightener( *_tableau )
     , _smtCore( this )
     , _numPlConstraintsDisabledByValidSplits( 0 )
     , _preprocessingEnabled( false )
@@ -209,6 +208,14 @@ bool Engine::solve( unsigned timeoutInSeconds )
             {
                 _smtCore.performSplit();
                 splitJustPerformed = true;
+
+                // Restore tableau before splitting, then re-add eqs
+                _precisionRestorer.restoreTableau( *this, *_tableau, _smtCore, PrecisionRestorer::RESTORE_BASICS );
+                _basisRestorationRequired = Engine::RESTORATION_NOT_NEEDED;
+                _rowBoundTightener->clear();
+                _constraintBoundTightener->resetBounds();
+                addRelaxedEquations();
+                //
 
                 continue;
             }
@@ -1852,7 +1859,6 @@ bool getEquation(Equation &eq, AutoTableau &_tableau, unsigned int vb, unsigned 
 
 void Engine::addRelaxedEquations() {
     List<Equation> eqsToAdd;
-
     for ( auto it = _relaxedVars.begin(); it != _relaxedVars.end(); it++ ) {
         Equation eq;
         unsigned int vb = it->first;
@@ -1862,7 +1868,6 @@ void Engine::addRelaxedEquations() {
     }
 
     for ( auto &eq : eqsToAdd ) {
-        _eqsAdded++;
         _tableau->addEquation(eq);
     }
     
@@ -1893,7 +1898,6 @@ void Engine::performSymbolicBoundTightening()
     _networkLevelReasoner->getConstraintTightenings( tightenings );
 
     List<Equation> eqsToAdd;
-    unsigned eqsCount = 0;
     for ( const auto &tightening : tightenings )
     {
         bool done = false;
@@ -1920,10 +1924,8 @@ void Engine::performSymbolicBoundTightening()
             unsigned int vf = it->second;
 
             Equation eq;
-            if (getEquation(eq, _tableau, vb, vf)) {
+            if (getEquation(eq, _tableau, vb, vf))
                 eqsToAdd.append(eq);
-                eqsCount += 1;
-            }
         }
     }
 
@@ -1931,23 +1933,13 @@ void Engine::performSymbolicBoundTightening()
     _statistics.addTimeForSymbolicBoundTightening( TimeUtils::timePassed( start, end ) );
     _statistics.incNumTighteningsFromSymbolicBoundTightening( numTightenedBounds );
 
-    //if ((eqsCount + _eqsAdded) >= 40) {
-    if (eqsCount > 0) {
-        _precisionRestorer.restoreTableau( *this, *_tableau, _smtCore, PrecisionRestorer::RESTORE_BASICS );
-        _basisRestorationRequired = Engine::RESTORATION_NOT_NEEDED;
-        _eqsAdded = 0;
-
-        addRelaxedEquations();
-    }/* else {
-        for ( auto &eq : eqsToAdd ) {
-            _tableau->addEquation(eq);
-        }
-
-        _activeEntryStrategy->resizeHook( _tableau );
-        adjustWorkMemorySize();
-        _rowBoundTightener->resetBounds();
-        _constraintBoundTightener->resetBounds();
-    }*/
+    for ( auto &eq : eqsToAdd ) {
+        _tableau->addEquation(eq);
+    }
+    _activeEntryStrategy->resizeHook( _tableau );
+    adjustWorkMemorySize();
+    _rowBoundTightener->resetBounds();
+    _constraintBoundTightener->resetBounds();
 }
 
 bool Engine::shouldExitDueToTimeout( unsigned timeout ) const
