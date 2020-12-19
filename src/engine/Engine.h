@@ -180,6 +180,7 @@ private:
 
     void addRelaxedEquations();
     std::map<unsigned int, unsigned int> _relaxedVars;
+    int _work_alloc; 
 
     /*
       Perform bound tightening operations that require
