@@ -105,6 +105,12 @@ public:
     {
     }
 
+
+    Statistics _stats;
+    const Statistics *getStatistics() const {
+        return &_stats;
+    }
+
     unsigned _timeToSolve;
     IEngine::ExitCode _exitCode;
     bool solve( unsigned timeoutInSeconds )

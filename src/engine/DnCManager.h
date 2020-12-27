@@ -80,6 +80,7 @@ private:
                           std::unique_ptr<InputQuery> inputQuery,
                           std::atomic_uint &numUnsolvedSubQueries,
                           std::atomic_bool &shouldQuitSolving,
+                          std::atomic_uint &totalVisitedStates,
                           unsigned threadId, unsigned onlineDivides,
                           float timeoutFactor, SnCDivideStrategy divideStrategy,
                           bool restoreTreeStates, unsigned verbosity );

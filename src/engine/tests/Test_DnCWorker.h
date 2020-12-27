@@ -118,6 +118,7 @@ public:
         _engine->setTimeToSolve( 10 );
         _engine->setExitCode( IEngine::TIMEOUT );
         std::atomic_uint numUnsolvedSubQueries( 1 );
+        std::atomic_uint totalVisitedStates( 0 );
         std::atomic_bool shouldQuitSolving( false );
         unsigned threadId = 0;
         unsigned onlineDivides = 2;
@@ -125,7 +126,7 @@ public:
         SnCDivideStrategy divideStrategy = SnCDivideStrategy::LargestInterval;
         unsigned verbosity = 0;
         DnCWorker dncWorker( _workload, _engine, numUnsolvedSubQueries,
-                             shouldQuitSolving, threadId, onlineDivides,
+                             shouldQuitSolving, totalVisitedStates, threadId, onlineDivides,
                              timeoutFactor, divideStrategy, verbosity );
 
         dncWorker.popOneSubQueryAndSolve();
@@ -147,9 +148,10 @@ public:
         createPlaceHolderSubQuery();
         _engine->setExitCode( IEngine::UNSAT );
         numUnsolvedSubQueries= 2;
+        totalVisitedStates = 0;
         shouldQuitSolving= false;
 		dncWorker = DnCWorker( _workload, _engine, numUnsolvedSubQueries,
-                               shouldQuitSolving, threadId, onlineDivides,
+                               shouldQuitSolving, totalVisitedStates, threadId, onlineDivides,
                                timeoutFactor, divideStrategy, verbosity );
 
         dncWorker.popOneSubQueryAndSolve();
@@ -172,10 +174,11 @@ public:
         createPlaceHolderSubQuery();
         _engine->setExitCode( IEngine::UNSAT );
         numUnsolvedSubQueries= 1;
+        totalVisitedStates = 0;
         shouldQuitSolving= false;
 
         dncWorker = DnCWorker( _workload, _engine, numUnsolvedSubQueries,
-                               shouldQuitSolving, threadId, onlineDivides,
+                               shouldQuitSolving, totalVisitedStates, threadId, onlineDivides,
                                timeoutFactor, divideStrategy, verbosity );
 
         dncWorker.popOneSubQueryAndSolve();
@@ -197,9 +200,10 @@ public:
         createPlaceHolderSubQuery();
         _engine->setExitCode( IEngine::SAT );
         numUnsolvedSubQueries=( 1 );
+        totalVisitedStates = 0;
         shouldQuitSolving=( false );
 		dncWorker = DnCWorker( _workload, _engine, numUnsolvedSubQueries,
-                             shouldQuitSolving, threadId, onlineDivides,
+                             shouldQuitSolving, totalVisitedStates, threadId, onlineDivides,
                                timeoutFactor, divideStrategy, verbosity );
 
         dncWorker.popOneSubQueryAndSolve();
@@ -220,9 +224,10 @@ public:
         createPlaceHolderSubQuery();
         _engine->setExitCode( IEngine::QUIT_REQUESTED );
         numUnsolvedSubQueries= 1;
+        totalVisitedStates = 0;
         shouldQuitSolving =  true;
 		dncWorker = DnCWorker( _workload, _engine, numUnsolvedSubQueries,
-                               shouldQuitSolving, threadId, onlineDivides,
+                               shouldQuitSolving, totalVisitedStates, threadId, onlineDivides,
                                timeoutFactor, divideStrategy, verbosity );
         dncWorker.popOneSubQueryAndSolve();
         TS_ASSERT( _engine->getExitCode() == IEngine::QUIT_REQUESTED );
@@ -241,10 +246,11 @@ public:
         createPlaceHolderSubQuery();
         _engine->setExitCode( IEngine::ERROR );
          numUnsolvedSubQueries= 1;
+        totalVisitedStates = 0;
         shouldQuitSolving = false;
 
 		dncWorker = DnCWorker( _workload, _engine, numUnsolvedSubQueries,
-                               shouldQuitSolving, threadId, onlineDivides,
+                               shouldQuitSolving, totalVisitedStates, threadId, onlineDivides,
                                timeoutFactor, divideStrategy, verbosity );
 
         dncWorker.popOneSubQueryAndSolve();

@@ -18,6 +18,7 @@
 
 #include "DivideStrategy.h"
 #include "SnCDivideStrategy.h"
+#include "Statistics.h"
 #include "List.h"
 
 #ifdef _WIN32
@@ -84,6 +85,8 @@ public:
     */
     virtual void reset() = 0;
     virtual List<unsigned> getInputVariables() const = 0;
+
+    virtual const Statistics *getStatistics() const = 0;
 
     /*
       Pick the piecewise linear constraint for internal splitting

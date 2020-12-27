@@ -37,6 +37,7 @@ void DnCManager::dncSolve( WorkerQueue *workload, std::shared_ptr<Engine> engine
                            std::unique_ptr<InputQuery> inputQuery,
                            std::atomic_uint &numUnsolvedSubQueries,
                            std::atomic_bool &shouldQuitSolving,
+                           std::atomic_uint &totalVisitedStates,
                            unsigned threadId, unsigned onlineDivides,
                            float timeoutFactor, SnCDivideStrategy divideStrategy,
                            bool restoreTreeStates, unsigned verbosity )
@@ -51,7 +52,7 @@ void DnCManager::dncSolve( WorkerQueue *workload, std::shared_ptr<Engine> engine
     engine->processInputQuery( *inputQuery, false );
 
     DnCWorker worker( workload, engine, std::ref( numUnsolvedSubQueries ),
-                      std::ref( shouldQuitSolving ), threadId, onlineDivides,
+                      std::ref( shouldQuitSolving ), std::ref( totalVisitedStates ), threadId, onlineDivides,
                       timeoutFactor, divideStrategy, verbosity );
     while ( !shouldQuitSolving.load() )
     {
@@ -160,6 +161,7 @@ void DnCManager::solve()
     float timeoutFactor = Options::get()->getFloat( Options::TIMEOUT_FACTOR );
     bool restoreTreeStates = Options::get()->getBool( Options::RESTORE_TREE_STATES );
 
+    std::atomic_uint totalVisitedStates( 0 );
     // Spawn threads and start solving
     std::list<std::thread> threads;
     for ( unsigned threadId = 0; threadId < numWorkers; ++threadId )
@@ -171,6 +173,7 @@ void DnCManager::solve()
                                         std::move( inputQuery ),
                                         std::ref( _numUnsolvedSubQueries ),
                                         std::ref( shouldQuitSolving ),
+                                        std::ref( totalVisitedStates ),
                                         threadId, onlineDivides,
                                         timeoutFactor, _sncSplittingStrategy,
                                         restoreTreeStates, _verbosity ) );
@@ -194,6 +197,8 @@ void DnCManager::solve()
 
     for ( auto &thread : threads )
         thread.join();
+
+    printf("\n --- DNC TOTAL VISITED STATES --- %d ---\n", (unsigned int)totalVisitedStates);
 
     updateDnCExitCode();
     return;

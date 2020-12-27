@@ -33,12 +33,14 @@
 DnCWorker::DnCWorker( WorkerQueue *workload, std::shared_ptr<IEngine> engine,
                       std::atomic_uint &numUnsolvedSubQueries,
                       std::atomic_bool &shouldQuitSolving,
+                      std::atomic_uint &totalVisitedStates,
                       unsigned threadId, unsigned onlineDivides,
                       float timeoutFactor, SnCDivideStrategy divideStrategy,
                       unsigned verbosity )
     : _workload( workload )
     , _engine( engine )
     , _numUnsolvedSubQueries( &numUnsolvedSubQueries )
+    , _totalVisitedStates( &totalVisitedStates )
     , _shouldQuitSolving( &shouldQuitSolving )
     , _threadId( threadId )
     , _onlineDivides( onlineDivides )
@@ -106,6 +108,9 @@ void DnCWorker::popOneSubQueryAndSolve( bool restoreTreeStates )
             // UNSAT is proven when replaying stack-entries
             result = IEngine::UNSAT;
         }
+
+        *_totalVisitedStates += _engine->getStatistics()->getNumVisitedTreeStates();
+        printf(" ---- %d ----\n", _engine->getStatistics()->getNumVisitedTreeStates());
 
         if ( _verbosity > 0 )
             printProgress( queryId, result );
